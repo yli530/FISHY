@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>crisp-game-lib</title>
+    <meta
+      name="viewport"
+      content="width=device-width, height=device-height,
+    user-scalable=no, initial-scale=1, maximum-scale=1"
+    />
+    <script src="https://unpkg.com/sounds-some-sounds@1.0.5/build/index.js"></script>
+    <script src="https://unpkg.com/gif-capture-canvas@1.1.0/build/index.js"></script>
+    <script src="https://unpkg.com/terser@4.6.11/dist/bundle.min.js"></script>
+    <script src="https://unpkg.com/pixi.js@5.3.0/dist/pixi.min.js"></script>
+    <script src="https://unpkg.com/pixi-filters@3.1.1/dist/pixi-filters.js"></script>
+    <script>
+      var module = {};
+    </script>
+    <script src="https://unpkg.com/lodash.clonedeep@4.5.0/index.js"></script>
+    <script src="bundle.js"></script>
+    <script>
+title = "BASEBALL";
+
+description = `
+[Tap] Swing
+AVOID BOMB
+`;
+
+characters = [
+  `
+ yyy
+yr ry 
+y r y
+yr ry
+ yyy
+`,
+  `
+  r
+ lll
+lllll
+lllll
+lllll
+ lll
+`,
+  `
+  ll
+  ll l
+llllll
+ llll
+ l  l
+`
+];
+
+let startTime;
+let num = 1;
+let rotate = 0;
+let swinging = false;
+let swingPos = { x: 0, y: 0 }
+let stunned;
+
+options = {
+  theme: 'shapeDark'
+};
+
+
+/**
+ * @typedef {{
+ * pos: Vector
+ * }} Ball
+ */
+
+/**
+* @type { Ball [] }
+*/
+let balls;
+
+/**
+* @type { number }
+*/
+let ballSpeed;
+
+/**
+* @type { number }
+*/
+let waveCount;
+
+/**
+ * @typedef {{
+ * pos: Vector
+ * }} Bomb
+ */
+
+/**
+* @type { Bomb [] }
+*/
+let bombs;
+
+
+const G = {
+  BALL_MIN_BASE_SPEED: 1,
+  BALL_MAX_BASE_SPEED: 1.5,
+  WIDTH: 100,
+  HEIGHT: 150
+};
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function update() {
+  if (!ticks) {
+    balls = [];
+    waveCount = 0;
+    ballSpeed = 0;
+    bombs = [];
+    startTime = Date.now();
+  }
+
+  if(stunned) {
+    color("light_red");
+  } else {
+    color("light_black");
+  }
+  char('c', 
+       (input.pos.x < 0) ? 4 : ((input.pos.x > G.WIDTH) ? G.WIDTH - 4 : input.pos.x), 
+       input.pos.y);
+
+  color("yellow");
+  if (input.isJustPressed && !swinging && !stunned) {
+    swinging = true;
+  }
+
+  if (input.isJustPressed && stunned) {
+    play("select");
+  }
+  if (swinging && !stunned) {
+    play("laser"); //change the sound later
+    bar(input.pos.x + 3, input.pos.y, 15, 2, (rotate + 30) * Math.PI / 180, 0);
+    rotate -= 8; //speed of swing
+    if (rotate < -90) {
+      swinging = false;
+      rotate = 0;
+    }
+  }
+
+  if (balls.length === 0) {
+    ballSpeed =
+      rnd(G.BALL_MIN_BASE_SPEED, G.BALL_MAX_BASE_SPEED) * difficulty;
+    for (let i = 0; i < 9; i++) {
+      const posX = rnd(0, G.WIDTH);
+      const posY = -rnd(i * G.HEIGHT * 0.1);
+      balls.push({ pos: vec(posX, posY) })
+    }
+  }
+  remove(balls, (ba) => {
+    ba.pos.y += ballSpeed;
+
+    const collideWithBat = char("a", ba.pos).isColliding.rect.yellow;
+
+    if (collideWithBat) {
+      addScore(10, ba.pos);
+      if(score % 250 == 0) {
+        num -= 5;
+      }
+    }
+
+    return (collideWithBat || ba.pos.y > G.HEIGHT);
+  });
+
+  if (bombs.length === 0) {
+    ballSpeed =
+      rnd(G.BALL_MIN_BASE_SPEED, G.BALL_MAX_BASE_SPEED) * difficulty;
+    for (let i = 0; i < 3; i++) {
+      const posX = rnd(0, G.WIDTH);
+      const posY = -rnd(i * G.HEIGHT * 0.1);
+      bombs.push({ pos: vec(posX, posY) })
+    }
+  }
+  remove(bombs, (bo) => {
+    color("black");
+    bo.pos.y += ballSpeed;
+    char("b", bo.pos);
+
+    const collideWithBat = char("b", bo.pos).isColliding.rect.yellow;
+
+    if (collideWithBat) {
+      color("red");
+      particle(bo.pos);
+      play("explosion");
+      stunned = 1;
+      swinging = false;
+      rotate = 0;
+      sleep(3000).then(() => {
+        ; //3 seconds
+        console.log("stunned!");
+        stunned = 0;
+      });
+
+
+    }
+    return (collideWithBat || bo.pos.y > G.HEIGHT);
+  });
+
+  color("light_black");
+  text("Time Left:", 14, 10);
+  num = Math.floor(61 - ((Date.now() - startTime) / 1000));
+  if (num <= 0) {
+    end();
+  }
+  text(num.toString(), 77, 10);
+}
+      window.addEventListener("load", onLoad);
+    </script>
+  </head>
+  <body style="background: #ddd"></body>
+</html>
