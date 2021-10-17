@@ -19,196 +19,148 @@
     <script src="https://unpkg.com/lodash.clonedeep@4.5.0/index.js"></script>
     <script src="bundle.js"></script>
     <script>
-title = "BASEBALL";
+title = "FISHY";
 
 description = `
-[Tap] Swing
-AVOID BOMB
+ click and hold
+to start fishing
+release to catch
 `;
 
 characters = [
   `
- yyy
-yr ry 
-y r y
-yr ry
- yyy
-`,
+  bbbb
+  bbbb
+  bbbb
+  bbbb
+  bb
+  bbb
+  `,
   `
-  r
- lll
-lllll
-lllll
-lllll
- lll
-`,
+   bb
+b  bbb
+ bbbbb
+ bbbbb
+b
   `
-  ll
-  ll l
-llllll
- llll
- l  l
-`
 ];
 
-let startTime;
-let num = 1;
-let rotate = 0;
-let swinging = false;
-let swingPos = { x: 0, y: 0 }
-let stunned;
-
-options = {
-  theme: 'shapeDark'
-};
-
-
-/**
- * @typedef {{
- * pos: Vector
- * }} Ball
- */
-
-/**
-* @type { Ball [] }
-*/
-let balls;
-
-/**
-* @type { number }
-*/
-let ballSpeed;
-
-/**
-* @type { number }
-*/
-let waveCount;
-
-/**
- * @typedef {{
- * pos: Vector
- * }} Bomb
- */
-
-/**
-* @type { Bomb [] }
-*/
-let bombs;
-
-
-const G = {
-  BALL_MIN_BASE_SPEED: 1,
-  BALL_MAX_BASE_SPEED: 1.5,
+const data = {
   WIDTH: 100,
   HEIGHT: 150
+}
+
+options = {
+  viewSize: {x: data.WIDTH, y: data.HEIGHT},
+  isPlayingBgm: true,
+  seed: 5,
+  isDrawingParticleFront: true,
+  isDrawingScoreFront: true
 };
 
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+let player;
+let snow;
+let fish;
+let difficultyMul;
+let hook;
+let hookLength = 0;
+let hookCount = 0;
+
+player = {
+  pos: vec(data.WIDTH * 0.45, data.HEIGHT * 0.4)
 }
 
 function update() {
   if (!ticks) {
-    balls = [];
-    waveCount = 0;
-    ballSpeed = 0;
-    bombs = [];
-    startTime = Date.now();
+    snow = times(40, () => {
+      const snowX = rnd(0, data.WIDTH);
+      const snowY = rnd(0, data.HEIGHT*0.35);
+      return {
+        pos: vec(snowX, snowY),
+        speed: rnd(0.5, 1)
+      };
+    });
+    fish = times(20, () => {
+      const fishX = rnd(0, data.WIDTH);
+      const fishY = rnd(data.HEIGHT*0.5, data.HEIGHT);
+      return {
+        pos: vec(fishX, fishY),
+        speed: rnd(0.5, 1),
+        bad: (rnd(0, 1)*10 > difficultyMul) ? true : false
+      };
+    });
+    hook = vec(data.WIDTH*0.5 - 2, data.HEIGHT*0.4 + 2);
   }
+  difficultyMul = Math.floor(Math.sqrt(hookCount)) < 3 ? 9 : 10 - (Math.floor(Math.sqrt(hookCount)))/2;
+  snow.forEach((s) => {
+    s.pos.y += s.speed;
+    s.pos.x += s.speed/2;
+    s.pos.wrap(0, data.WIDTH, 0, data.HEIGHT*0.4);
 
-  if(stunned) {
-    color("light_red");
-  } else {
     color("light_black");
-  }
-  char('c', 
-       (input.pos.x < 0) ? 4 : ((input.pos.x > G.WIDTH) ? G.WIDTH - 4 : input.pos.x), 
-       input.pos.y);
+    box(s.pos, 1);
+  });
+  color("blue");
+  char("a", player.pos);
+  color("cyan");
+  rect(0, data.HEIGHT*0.4 + 3, data.WIDTH*0.5 - 4, 2);
+  rect(data.WIDTH*0.5 + 1, data.HEIGHT*0.4 + 3, data.WIDTH*0.5, 2);
+  color("light_blue");
+  rect(0, data.HEIGHT*0.4 + 5, data.WIDTH, data.HEIGHT*0.6);
 
-  color("yellow");
-  if (input.isJustPressed && !swinging && !stunned) {
-    swinging = true;
+  while(fish.length < 20) {
+    fish.push({
+      pos: vec(0, rnd(data.HEIGHT*0.5, data.HEIGHT)),
+      speed: rnd(0.5, 1),
+      bad: (rnd(0, 1)*10 > difficultyMul) ? true : false
+    })
   }
 
-  if (input.isJustPressed && stunned) {
-    play("select");
-  }
-  if (swinging && !stunned) {
-    play("laser"); //change the sound later
-    bar(input.pos.x + 3, input.pos.y, 15, 2, (rotate + 30) * Math.PI / 180, 0);
-    rotate -= 8; //speed of swing
-    if (rotate < -90) {
-      swinging = false;
-      rotate = 0;
+  if(input.isPressed) {
+    hookLength++;
+    color("light_black");
+    rect(hook, 2, hookLength);
+    if(hookLength > data.HEIGHT*0.6) {
+      color("light_yellow");
+      rect(hook, 2, hookLength);
+      hookLength = 0;
+      hookCount++;
     }
-  }
-
-  if (balls.length === 0) {
-    ballSpeed =
-      rnd(G.BALL_MIN_BASE_SPEED, G.BALL_MAX_BASE_SPEED) * difficulty;
-    for (let i = 0; i < 9; i++) {
-      const posX = rnd(0, G.WIDTH);
-      const posY = -rnd(i * G.HEIGHT * 0.1);
-      balls.push({ pos: vec(posX, posY) })
+  } else {
+    color("light_yellow");
+    rect(hook, 2, hookLength);
+    if(hookLength > 0) {
+      hookCount++;
     }
+    hookLength = 0;
   }
-  remove(balls, (ba) => {
-    ba.pos.y += ballSpeed;
 
-    const collideWithBat = char("a", ba.pos).isColliding.rect.yellow;
+  remove(fish, (f) => {
+    f.pos.x += f.speed;
 
-    if (collideWithBat) {
-      addScore(10, ba.pos);
-      if(score % 250 == 0) {
-        num -= 5;
+    if(f.bad) {
+      color("black");
+    } else {
+      color("light_yellow");
+    }
+    const isColldingWithRod = char("b", f.pos).isColliding.rect.light_yellow;
+    if (isColldingWithRod) {
+      if(f.bad) {
+        color("red");
+        particle(f.pos);
+        play("explosion");
+        end();
+      } else {
+        color("yellow");
+        particle(f.pos);
+        play("coin");
+        addScore(10 * (1 + (f.pos.y - (data.HEIGHT/2))/ 25), f.pos);
       }
     }
-
-    return (collideWithBat || ba.pos.y > G.HEIGHT);
+    return (isColldingWithRod || f.pos.x > data.WIDTH);
   });
-
-  if (bombs.length === 0) {
-    ballSpeed =
-      rnd(G.BALL_MIN_BASE_SPEED, G.BALL_MAX_BASE_SPEED) * difficulty;
-    for (let i = 0; i < 3; i++) {
-      const posX = rnd(0, G.WIDTH);
-      const posY = -rnd(i * G.HEIGHT * 0.1);
-      bombs.push({ pos: vec(posX, posY) })
-    }
-  }
-  remove(bombs, (bo) => {
-    color("black");
-    bo.pos.y += ballSpeed;
-    char("b", bo.pos);
-
-    const collideWithBat = char("b", bo.pos).isColliding.rect.yellow;
-
-    if (collideWithBat) {
-      color("red");
-      particle(bo.pos);
-      play("explosion");
-      stunned = 1;
-      swinging = false;
-      rotate = 0;
-      sleep(3000).then(() => {
-        ; //3 seconds
-        console.log("stunned!");
-        stunned = 0;
-      });
-
-
-    }
-    return (collideWithBat || bo.pos.y > G.HEIGHT);
-  });
-
-  color("light_black");
-  text("Time Left:", 14, 10);
-  num = Math.floor(61 - ((Date.now() - startTime) / 1000));
-  if (num <= 0) {
-    end();
-  }
-  text(num.toString(), 77, 10);
 }
+
       window.addEventListener("load", onLoad);
     </script>
   </head>
